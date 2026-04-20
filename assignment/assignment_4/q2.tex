@@ -1,0 +1,189 @@
+\graphicspath{ {images/} }
+
+\titledquestion{Analyzing NMT Systems}[25]
+
+\begin{parts}
+
+    \part[3] Look at the {\monofam{src.vocab}} file for some examples of phrases and words in the source language vocabulary. When encoding an input Mandarin Chinese sequence into ``pieces'' in the vocabulary, the tokenizer maps the sequence to a series of vocabulary items, each consisting of one or more characters (thanks to the {\monofam{sentencepiece}} tokenizer, we can perform this segmentation even when the original text has no white space). Given this information, how could adding a 1D Convolutional layer after the embedding layer and before passing the embeddings into the bidirectional encoder help our NMT system? \textbf{Hint:} each Mandarin Chinese character is either an entire word or a morpheme in a word. Look up the meanings of 电, 脑, and 电脑 separately for an example. The characters 电 (electricity) and  脑 (brain) when combined into the phrase 电脑 mean computer.
+
+    \ifans{
+        Adding a 1D Convolutional layer after the embedding layer allows the model to capture local context and combine the representations of adjacent characters or subwords (n-grams) into higher-level semantic features before they reach the encoder. In Mandarin Chinese, single characters are often morphemes that combine to form multi-character words with distinct or compositional meanings (such as ``电" and ``脑" combining into ``电脑"). A 1D CNN with a sliding window across the sequence can effectively explicitly construct and extract these local compositional features (multi-character words or phrases) regardless of their position in the sentence. This provides the bidirectional encoder with a much richer, word-level structural representation rather than treating each isolated character entirely disjointly. 
+    }
+
+
+    \part[8] Here we present a series of errors we found in the outputs of our NMT model (which is the same as the one you just trained). For each example of a reference (i.e., `gold') English translation, and NMT (i.e., `model') English translation, please:
+    
+    \begin{enumerate}
+        \item Identify the error in the NMT translation.
+        \item Provide possible reason(s) why the model may have made the error (either due to a specific linguistic construct or a specific model limitation).
+        \item Describe one possible way we might alter the NMT system to fix the observed error. There are more than one possible fixes for an error. For example, it could be tweaking the size of the hidden layers or changing the attention mechanism.
+    \end{enumerate}
+    
+    Below are the translations that you should analyze as described above. Only analyze the underlined error in each sentence. Rest assured that you don't need to know Mandarin to answer these questions. You just need to know English! If, however, you would like some additional color on the source sentences, feel free to use a resource like \url{https://www.archchinese.com/chinese_english_dictionary.html} to look up words. Feel free to search the training data file to have a better sense of how often certain characters occur.
+
+    \begin{subparts}
+        \subpart[2]
+        \textbf{Source Sentence:} 贼人其后被警方拘捕及被判处盗窃罪名成立。 \newline
+        \textbf{Reference Translation:} \textit{\underline{the culprits were} subsequently arrested and convicted.}\newline
+        \textbf{NMT Translation:} \textit{\underline{the culprit was} subsequently arrested and sentenced to theft.}
+        
+        \ifans{
+            \begin{enumerate}
+                \item \textbf{Error:} The model generated the singular subject ``the culprit was'' instead of the plural ``the culprits were''.
+                \item \textbf{Reason:} Mandarin Chinese nouns typically lack explicit morphological plural markers (e.g., ``贼人'' translates to either a single thief or multiple thieves). The model lacked the broader context to infer plurality and defaulted to the more statistically common singular form.
+                \item \textbf{Fix:} Incorporate document-level context (translating multi-sentence windows instead of isolated sentences) so the model can implicitly capture semantic hints about plurality from surrounding text.
+            \end{enumerate}
+        }
+
+
+        \subpart[2]
+        \textbf{Source Sentence}: 几乎已经没有地方容纳这些人,资源已经用尽。\newline
+        \textbf{Reference Translation}: \textit{there is almost no space to accommodate these people, and resources have run out.   }\newline
+        \textbf{NMT Translation}: \textit{the resources have been exhausted and \underline{resources have been exhausted}.}
+        
+        \ifans{
+            \begin{enumerate}
+                \item \textbf{Error:} The NMT translation dropped the first half of the source sentence and incorrectly stuttered/repeated the phrase ``resources have been exhausted''.
+                \item \textbf{Reason:} This is a common issue in sequence-to-sequence models with attention architectures, known as over-translation and under-translation. The attention mechanism likely got stuck on the last few tokens of the source sentence (``资源已经用尽'') and failed to traverse the rest of the sentence.
+                \item \textbf{Fix:} Incorporate an attention coverage penalty into the loss function or during inference (e.g., in beam search). This penalizes the model for attending to the same source words repeatedly, forcing the attention distribution to scan comprehensively across the entire original sentence.
+            \end{enumerate}
+        }
+
+        \subpart[2]
+        \textbf{Source Sentence}: 当局已经宣布今天是国殇日。 \newline
+        \textbf{Reference Translation}: \textit{authorities have announced \underline{a national mourning today.}}\newline
+        \textbf{NMT Translation}: \textit{the administration has announced \underline{today's day.}}
+        
+        \ifans{
+            \begin{enumerate}
+                \item \textbf{Error:} The model failed to translate the concept of ``国殇日'' (national mourning day) entirely, collapsing it into the awkward phrase ``today's day''.
+                \item \textbf{Reason:} ``国殇日'' is likely a rare out-of-vocabulary (OOV) compound word in the training corpus. Because the model didn't learn a strong representation for it, it ignored the word and hallucinated an output based on the surrounding familiar tokens like ``今天'' (today) and ``是'' (is).
+                \item \textbf{Fix:} Use a finer subword tokenization strategy (e.g., smaller BPE vocabulary size) to ensure rare compound words are mechanically broken down into recognizable characters (e.g., ``国'' nation, ``殇'' mourn, ``日'' day) so the model can compositionally translate them.
+            \end{enumerate}
+        }
+        
+        \subpart[2] 
+        \textbf{Source Sentence\footnote{This is a Cantonese sentence! The data used in this assignment comes from GALE Phase 3, which is a compilation of news written in simplified Chinese from various sources scraped from the internet along with their translations. For more details, see \url{https://catalog.ldc.upenn.edu/LDC2017T02}. }:} 俗语有云:``唔做唔错"。\newline
+        \textbf{Reference Translation:} \textit{\underline{`` act not, err not "}, so a saying goes.}\newline
+        \textbf{NMT Translation:} \textit{as the saying goes, \underline{`` it's not wrong. "}}
+        
+        \ifans{
+            \begin{enumerate}
+                \item \textbf{Error:} The model wrongly translates the Cantonese colloquial phrase ``唔做唔错'' (act not, err not) as ``it's not wrong''.
+                \item \textbf{Reason:} The phrase originates from a regional dialect (Cantonese). Because the NMT model was primarily trained on standard mainland news (which lacks such phrases), it didn't recognize the structure. It merely recognized ``唔'' (not) and ``错'' (wrong) and hallucinated the translation.
+                \item \textbf{Fix:} Augment the training data with a conversational and dialectal corpus that includes Cantonese phrases. Alternatively, implement a back-translation strategy on Cantonese data to help the model learn cross-dialect mapping.
+            \end{enumerate}
+        }
+    \end{subparts}
+
+
+    \part[14] BLEU score is the most commonly used automatic evaluation metric for NMT systems. It is usually calculated across the entire test set, but here we will consider BLEU defined for a single example.\footnote{This definition of sentence-level BLEU score matches the \texttt{sentence\_bleu()} function in the \texttt{nltk} Python package. Note that the NLTK function is sensitive to capitalization. In this question, all text is lowercased, so capitalization is irrelevant. \\ \url{http://www.nltk.org/api/nltk.translate.html\#nltk.translate.bleu_score.sentence_bleu}
+    } 
+    Suppose we have a source sentence $\bs$, a set of $k$ reference translations $\br_1,\dots,\br_k$, and a candidate translation $\bc$. To compute the BLEU score of $\bc$, we first compute the \textit{modified $n$-gram precision} $p_n$ of $\bc$, for each of $n=1,2,3,4$, where $n$ is the $n$ in \href{https://en.wikipedia.org/wiki/N-gram}{n-gram}:
+    \begin{align}
+        p_n = \frac{ \displaystyle \sum_{\text{ngram} \in \bc} \min \bigg( \max_{i=1,\dots,k} \text{Count}_{\br_i}(\text{ngram}), \enspace \text{Count}_{\bc}(\text{ngram}) \bigg) }{\displaystyle \sum_{\text{ngram}\in \bc} \text{Count}_{\bc}(\text{ngram})}
+    \end{align}
+     Here, for each of the $n$-grams that appear in the candidate translation $\bc$, we count the maximum number of times it appears in any one reference translation, capped by the number of times it appears in $\bc$ (this is the numerator). We divide this by the number of $n$-grams in $\bc$ (denominator). \newline 
+
+    Next, we compute the \textit{brevity penalty} BP. Let $len(c)$ be the length of $\bc$ and let $len(r)$ be the length of the reference translation that is closest to $len(c)$ (in the case of two equally-close reference translation lengths, choose $len(r)$ as the shorter one). 
+    \begin{align}
+        BP = 
+        \begin{cases}
+            1 & \text{if } len(c) \ge len(r) \\
+            \exp \big( 1 - \frac{len(r)}{len(c)} \big) & \text{otherwise}
+        \end{cases}
+    \end{align}
+    Lastly, the BLEU score for candidate $\bc$ with respect to $\br_1,\dots,\br_k$ is:
+    \begin{align}
+        BLEU = BP \times \exp \Big( \sum_{n=1}^4 \lambda_n \log p_n \Big)
+    \end{align}
+    where $\lambda_1,\lambda_2,\lambda_3,\lambda_4$ are weights that sum to 1. The $\log$ here is natural log.
+    \newline
+    \begin{subparts}
+        \subpart[5] Please consider this example: \newline
+        Source Sentence $\bs$: \textbf{需要有充足和可预测的资源。} 
+        \newline
+        Reference Translation $\br_1$: \textit{resources have to be sufficient and they have to be predictable}
+        \newline
+        Reference Translation $\br_2$: \textit{adequate and predictable resources are required}
+        
+        NMT Translation $\bc_1$: there is a need for adequate and predictable resources
+        
+        NMT Translation $\bc_2$: resources be suﬀicient and predictable to
+        
+        Please compute the BLEU scores for $\bc_1$ and $\bc_2$. Let $\lambda_i=0.5$ for $i\in\{1,2\}$ and $\lambda_i=0$ for $i\in\{3,4\}$ (\textbf{this means we ignore 3-grams and 4-grams}, i.e., don't compute $p_3$ or $p_4$). When computing BLEU scores, show your work (i.e., show your computed values for $p_1$, $p_2$, $len(c)$, $len(r)$ and $BP$). Note that the BLEU scores can be expressed between 0 and 1 or between 0 and 100. The code is using the 0 to 100 scale while in this question we are using the \textbf{0 to 1} scale. Please round your responses to 3 decimal places. 
+        \newline
+        
+        Which of the two NMT translations is considered the better translation according to the BLEU Score? Do you agree that it is the better translation?
+        
+        \ifans{
+            \textbf{For NMT Translation $c_1$:}
+            \begin{itemize}
+                \item $len(c_1) = 9$. The references have lengths $len(r_1) = 11$ and $len(r_2) = 6$. The closer length is $11$, therefore $len(r) = 11$.
+                \item $BP = \exp(1 - \frac{11}{9}) = e^{-2/9} \approx 0.801$
+                \item $p_1 = \frac{4}{9}$ (Matches 4 unigrams: \textit{adequate, and, predictable, resources})
+                \item $p_2 = \frac{3}{8}$ (Matches 3 bigrams: \textit{adequate and, and predictable, predictable resources})
+                \item $\text{BLEU}_{c_1} = 0.801 \times \exp(0.5 \ln \frac{4}{9} + 0.5 \ln \frac{3}{8}) = 0.801 \times \sqrt{\frac{1}{6}} \approx 0.8007 \times 0.4082 \approx 0.327$
+            \end{itemize}
+            
+            \textbf{For NMT Translation $c_2$:}
+            \begin{itemize}
+                \item $len(c_2) = 6$. The closer length is $len(r_2) = 6$, therefore $len(r) = 6$.
+                \item $BP = 1$ (because $len(c_2) \ge len(r)$)
+                \item $p_1 = \frac{6}{6} = 1$ (Matches 6 unigrams: \textit{resources, be, sufficient, and, predictable, to})
+                \item $p_2 = \frac{3}{5}$ (Matches 3 bigrams: \textit{be sufficient, sufficient and, and predictable})
+                \item $\text{BLEU}_{c_2} = 1 \times \exp(0.5 \ln 1 + 0.5 \ln \frac{3}{5}) = 1 \times \sqrt{0.6} \approx 0.775$
+            \end{itemize}
+            
+            \textbf{Conclusion:} 
+            According to the scores, NMT $c_2$ (0.775) is currently considered the better translation. I \textbf{do not agree} with this evaluation. $c_1$ is completely grammatically correct and accurately represents the source sentence's meaning. $c_2$ produces an ungrammatical fragment. $c_2$'s BLEU was unnaturally inflated because it simultaneously minimized the brevity penalty using $r_2$, while selectively piecing together arbitrary matching $n$-grams independently distributed across both $r_1$ and $r_2$.
+        }
+        
+        \subpart[5] Our hard drive was corrupted and we lost Reference Translation $\br_1$. Please recompute BLEU scores for $\bc_1$ and $\bc_2$, this time with respect to $\br_2$ only. Which of the two NMT translations now receives the higher BLEU score? Do you agree that it is the better translation?
+        
+        \ifans{
+            With only reference $\br_2$ (\textit{adequate and predictable resources are required}, length 6) available:
+            
+            \textbf{For NMT Translation $c_1$:}
+            \begin{itemize}
+                \item $len(c_1) = 9$. $len(r) = 6$.
+                \item $BP = 1$ (because $9 > 6$)
+                \item $p_1 = \frac{4}{9}$ (Matches: \textit{adequate, and, predictable, resources})
+                \item $p_2 = \frac{3}{8}$ (Matches: \textit{adequate and, and predictable, predictable resources})
+                \item $\text{BLEU}_{c_1} = 1 \times \sqrt{\frac{4}{9} \times \frac{3}{8}} = \sqrt{\frac{1}{6}} \approx 0.408$
+            \end{itemize}
+
+            \textbf{For NMT Translation $c_2$:}
+            \begin{itemize}
+                \item $len(c_2) = 6$. $len(r) = 6$.
+                \item $BP = 1$
+                \item $p_1 = \frac{3}{6} = 0.5$ (Matches: \textit{resources, and, predictable})
+                \item $p_2 = \frac{1}{5} = 0.2$ (Matches: \textit{and predictable})
+                \item $\text{BLEU}_{c_2} = 1 \times \sqrt{0.5 \times 0.2} = \sqrt{0.1} \approx 0.316$
+            \end{itemize}
+            
+            \textbf{Conclusion:} 
+            NMT Translation $c_1$ (0.408) now receives a higher BLEU score than $c_2$ (0.316). I \textbf{agree} with this result, translation $c_1$ conveys a much better response. Without $r_1$'s vocabulary, the metric correctly exposed $c_2$ as the inferior partial translation.
+        }
+        
+        \subpart[2] Due to data availability, NMT systems are often evaluated with respect to only a single reference translation. Please explain (in a few sentences) why this may be problematic. In your explanation, discuss how the BLEU score metric assesses the quality of NMT translations when there are multiple reference transitions versus a single reference translation.
+        
+        \ifans{
+            BLEU purely measures structural precision by matching string $n$-grams. However, language is highly flexible; there are numerous valid grammatical synonyms and phrasings available for translating a single source sentence. If we use only a single reference, an NMT model might produce an objectively perfect sentence that is severely penalized because it happens to employ a different vocabulary variant than the reference writer chose. Having multiple references naturally injects diverse language representations and length variances, ensuring BLEU captures and credits various valid translation patterns instead of heavily skewing toward one subjective phrasing standard.
+        }
+        
+        \subpart[2] List two advantages and two disadvantages of BLEU, compared to human evaluation, as an evaluation metric for Machine Translation. 
+        
+        \ifans{
+            \begin{itemize}
+                \item \textbf{Advantages:} 
+                1. It is fully automated, rapid to compute, and virtually free. This enables engineering teams to instantly score model improvements and hyperparameter changes without waiting for human linguistic experts. 
+                2. It provides a purely objective, highly reproducible, and standardized metric across different scientific cohorts devoid of the inherent subjectivity of human translation bias.
+                \item \textbf{Disadvantages:} 
+                1. It lacks semantic understanding and completely ignores logical grammar or fluency. A jumbled ungrammatical sentence possessing exactly matching tokens could outscore a fluidly coherent translation utilizing slightly different vocabulary features (as seen in the earlier $c_2$ vs $c_1$ example).
+                2. Because humans frequently paraphrase sentences via structurally disjoint idioms, evaluating string $n$-gram exact overlaps systematically fails to identify or reward correct paraphrases and semantically valid synonyms.
+            \end{itemize}
+        }
+        
+    \end{subparts}
+\end{parts}
