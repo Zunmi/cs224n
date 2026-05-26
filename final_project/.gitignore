@@ -1,0 +1,35 @@
+# OS / editor
+.DS_Store
+.vscode/
+
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment files
+.env
+.env.*
+
+# ML artifacts
+*.pt
+*.ckpt
+*.bin
+*.safetensors
+
+# Project outputs and caches
+CS224N-Spring2024-DFP-Student-Handout/hf_cache/
+CS224N-Spring2024-DFP-Student-Handout/predictions/
+CS224N-Spring2024-DFP-Student-Handout/cs224n_default_final_project_submission.zip
+
+# Large local datasets / generated files
+CS224N-Spring2024-DFP-Student-Handout/data/
+
+# Notebook checkpoints and logs
+.ipynb_checkpoints/
+*.log
