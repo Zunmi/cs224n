@@ -1,0 +1,210 @@
+\graphicspath{ {images/} }
+
+\titledquestion{Attention exploration}[20]
+\label{sec:analysis}
+
+Multi-head self-attention is the core modeling component of Transformers.
+In this question, we'll get some practice working with the self-attention equations, and motivate why multi-headed self-attention can be preferable to single-headed self-attention.
+
+Recall that attention can be viewed as an operation on a \textit{query} vector $q\in\mathbb{R}^d$, a set of \textit{value} vectors $\{v_1,\dots,v_n\}, v_i\in\mathbb{R}^d$, and a set of \textit{key} vectors $\{k_1,\dots,k_n\}, k_i \in \mathbb{R}^d$, specified as follows:
+\begin{align}
+&c = \sum_{i=1}^{n} v_i \alpha_i \\
+&\alpha_i = \frac{\exp(k_i^\top q)}{\sum_{j=1}^{n} \exp(k_j^\top q)}
+\end{align} 
+with $alpha = \{\alpha_1, \ldots, \alpha_n\}$ termed the ``attention weights''. 
+Observe that the output $c\in\mathbb{R}^d$ is an average over the value vectors weighted with respect to $\alpha$.
+
+\begin{parts}
+
+\part[5] \textbf{Copying in attention.} One advantage of attention is that it's particularly easy to ``copy'' a value vector to the output $c$. In this problem, we'll motivate why this is the case.
+
+\begin{subparts}
+    \subpart[1] \textbf{Explain} why $\alpha$ can be interpreted as a categorical probability distribution. 
+    
+    \ifans{For every $i$, we have
+    $$
+    \alpha_i = \frac{\exp(k_i^\top q)}{\sum_{j=1}^{n} \exp(k_j^\top q)} > 0,
+    $$
+    since exponentials are always positive. Moreover,
+    $$
+    \sum_{i=1}^{n} \alpha_i
+    = \sum_{i=1}^{n} \frac{\exp(k_i^\top q)}{\sum_{j=1}^{n} \exp(k_j^\top q)}
+    = \frac{\sum_{i=1}^{n} \exp(k_i^\top q)}{\sum_{j=1}^{n} \exp(k_j^\top q)}
+    = 1.
+    $$
+    Therefore, the coefficients $\alpha_1, \ldots, \alpha_n$ are nonnegative and sum to $1$, so they form a categorical probability distribution over the indices $1, \ldots, n$.}
+    \subpart[2] The distribution $\alpha$ is typically relatively ``diffuse''; the probability mass is spread out between many different $\alpha_i$. However, this is not always the case. \textbf{Describe} (in one sentence) under what conditions the categorical distribution $\alpha$ puts almost all of its weight on some $\alpha_j$, where $j \in \{1, \ldots, n\}$ (i.e. $\alpha_j \gg \sum_{i \neq j} \alpha_i$). What must be true about the query $q$ and/or the keys $\{k_1,\dots,k_n\}$?
+    
+    \ifans{
+    The distribution places almost all of its mass on $\alpha_j$ when $k_j^\top q$ is much larger than $k_i^\top q$ for every $i \neq j$; for example, when $q$ is strongly aligned with $k_j$ and much less aligned with all other keys (possibly after scaling $q$ by a large constant).
+    }
+    \subpart[1] Under the conditions you gave in (ii),  \textbf{describe} the output $c$. 
+    
+    \ifans{If $\alpha_j \approx 1$ and $\alpha_i \approx 0$ for all $i \neq j$, then
+    $$
+    c = \sum_{i=1}^{n} \alpha_i v_i \approx v_j.
+    $$
+    So the output is approximately equal to the value vector associated with key $k_j$.}
+    \subpart[1] \textbf{Explain} (in two sentences or fewer) what your answer to (ii) and (iii) means intuitively. \\
+\ifans{Intuitively, attention can behave like a soft lookup mechanism: if the query matches one key much better than the others, the softmax becomes nearly one-hot on that position. Then the output is essentially a copy of the corresponding value vector.}
+
+\end{subparts}
+
+
+\part[7]\textbf{An average of two.} 
+\label{q_avg_of_two}
+Instead of focusing on just one vector $v_j$, a Transformer model might want to incorporate information from \textit{multiple} source vectors. 
+Consider the case where we instead want to incorporate information from \textbf{two} vectors $v_a$ and $v_b$, with corresponding key vectors $k_a$ and $k_b$.
+\begin{subparts}
+\subpart[3] How should we combine two $d$-dimensional vectors $v_a, v_b$ into one output vector $c$ in a way that preserves information from both vectors? 
+In machine learning, one common way to do so is to take the average: $c = \frac{1}{2} (v_a + v_b)$.
+It might seem hard to extract information about the original vectors $v_a$ and $v_b$ from the resulting $c$, but under certain conditions one can do so. In this problem, we'll see why this is the case.
+\\ \\
+Suppose that although we don't know $v_a$ or $v_b$, we do know that $v_a$ lies in a subspace $A$ formed by the $m$ basis vectors $\{a_1, a_2, \ldots, a_m\}$, while $v_b$ lies in a subspace $B$ formed by the $p$ basis vectors $\{b_1, b_2, \ldots, b_p\}.$ (This means that any $v_a$ can be expressed as a linear combination of its basis vectors, as can $v_b$. All basis vectors have norm 1 and are orthogonal to each other.)
+Additionally, suppose that the two subspaces are orthogonal; i.e. $a_j^\top b_k = 0$ for all $j, k$.
+
+Using the basis vectors $\{a_1, a_2, \ldots, a_m\}$, construct a matrix $M$ such that for arbitrary vectors $v_a \in A$ and $v_b \in B$, we can use $M$ to extract $v_a$ from the sum vector $s = v_a + v_b$. In other words, we want to construct $M$ such that for any $v_a, v_b$,  $Ms = v_a$. Show that $Ms = v_a$ holds for your $M$.
+
+
+\textbf{Hint:} Given that the vectors $\{a_1, a_2, \ldots, a_m\}$ are both \textit{orthogonal} and \textit{form a basis} for $v_a$, we know that there exist some $c_1, c_2, \ldots, c_m$ such that $v_a = c_1 a_1 + c_2 a_2 + \cdots + c_m a_m$. Can you create a vector of these weights $c$? 
+
+\ifans{Let
+$$
+M = \sum_{i=1}^{m} a_i a_i^\top.
+$$
+Equivalently, if $A = [a_1\ a_2\ \cdots\ a_m] \in \mathbb{R}^{d \times m}$, then $M = AA^\top$. Since $\{a_i\}_{i=1}^m$ is an orthonormal basis for $A$, any $v_a \in A$ can be written as
+$$
+v_a = \sum_{i=1}^{m} c_i a_i,
+$$
+so
+$$
+Mv_a = \sum_{i=1}^{m} a_i a_i^\top \left(\sum_{j=1}^{m} c_j a_j\right)
+= \sum_{i=1}^{m} \sum_{j=1}^{m} c_j a_i (a_i^\top a_j)
+= \sum_{j=1}^{m} c_j a_j
+= v_a,
+$$
+because $a_i^\top a_j = 1$ if $i=j$ and $0$ otherwise. Also, since $v_b \in B$ and the subspaces $A$ and $B$ are orthogonal, we have $a_i^\top v_b = 0$ for every $i$, hence
+$$
+Mv_b = \sum_{i=1}^{m} a_i a_i^\top v_b = 0.
+$$
+Therefore,
+$$
+Ms = M(v_a + v_b) = Mv_a + Mv_b = v_a + 0 = v_a.
+$$
+Thus $M$ is exactly the projection matrix onto subspace $A$, which extracts $v_a$ from $s$.}
+
+\subpart[4] As before, let $v_a$ and $v_b$ be two value vectors corresponding to key vectors $k_a$ and $k_b$, respectively.
+Assume that (1) all key vectors are orthogonal, so $k_i^\top k_j = 0$ for all $i \neq j$; and (2) all key vectors have norm $1$.\footnote{Recall that a vector $x$ has norm 1 iff $x^\top x = 1$.}
+\textbf{Find an expression} for a query vector $q$ such that $c \approx \frac{1}{2}(v_a + v_b)$, and justify your answer. \footnote{Hint: while the softmax function will never \textit{exactly} average the two vectors, you can get close by using a large scalar multiple in the expression.} 
+
+
+\ifans{Choose
+$$
+q = \lambda (k_a + k_b),
+$$
+where $\lambda > 0$ is a large scalar. Since the keys are orthogonal and have norm $1$,
+$$
+k_a^\top q = \lambda, \qquad k_b^\top q = \lambda,
+$$
+and for any $i \neq a,b$,
+$$
+k_i^\top q = \lambda(k_i^\top k_a + k_i^\top k_b) = 0.
+$$
+Therefore the attention weights satisfy
+$$
+\alpha_a = \alpha_b = \frac{e^{\lambda}}{2e^{\lambda} + (n-2)},
+\qquad
+\alpha_i = \frac{1}{2e^{\lambda} + (n-2)} \text{ for } i \neq a,b.
+$$
+As $\lambda \to \infty$, we get $\alpha_a \to \frac{1}{2}$, $\alpha_b \to \frac{1}{2}$, and $\alpha_i \to 0$ for all $i \neq a,b$. Hence
+$$
+c = \sum_{i=1}^{n} \alpha_i v_i \approx \frac{1}{2}v_a + \frac{1}{2}v_b.
+$$
+So a large multiple of $k_a + k_b$ makes attention approximately average the two desired value vectors.}
+\end{subparts}
+
+\part[5]\textbf{Drawbacks of single-headed attention:} \label{q_problem_with_single_head}
+In the previous part, we saw how it was \textit{possible} for a single-headed attention to focus equally on two values.
+The same concept could easily be extended to any subset of values.
+In this question we'll see why it's not a \textit{practical} solution.
+Consider a set of key vectors $\{k_1,\dots,k_n\}$ that are now randomly sampled, $k_i\sim \mathcal{N}(\mu_i, \Sigma_i)$, where the means $\mu_i \in \mathbb{R}^d$ are known to you, but the covariances $\Sigma_i$ are unknown.
+Further, assume that the means $\mu_i$ are all perpendicular; $\mu_i^\top \mu_j = 0$ if $i\not=j$, and unit norm, $\|\mu_i\|=1$.
+
+\begin{subparts}
+\subpart[2] Assume that the covariance matrices are $\Sigma_i = \alpha I, \forall i \in \{1, 2, \ldots, n\}$, for vanishingly small $\alpha$.
+Design a query $q$ in terms of the $\mu_i$ such that as before, $c\approx \frac{1}{2}(v_a + v_b)$, and provide a brief argument as to why it works.
+
+\ifans{Choose
+$$
+q = \lambda(\mu_a + \mu_b),
+$$
+where $\lambda > 0$ is a large scalar. Since each sampled key $k_i$ is very close to its mean $\mu_i$ when $\Sigma_i = \alpha I$ with vanishingly small $\alpha$, we have
+$$
+k_a^\top q \approx \lambda, \qquad k_b^\top q \approx \lambda,
+$$
+while for every $i \neq a,b$,
+$$
+k_i^\top q \approx 0,
+$$
+because the means are orthogonal and unit norm. Therefore the softmax assigns nearly equal and dominant mass to items $a$ and $b$, so $\alpha_a \approx \alpha_b \approx \frac{1}{2}$ and $\alpha_i \approx 0$ for $i \neq a,b$. Hence
+$$
+c = \sum_{i=1}^{n} \alpha_i v_i \approx \frac{1}{2}(v_a + v_b).
+$$}
+
+\subpart[3] Though single-headed attention is resistant to small perturbations in the keys, some types of larger perturbations may pose a bigger issue. Specifically, in some cases, one key vector $k_a$ may be larger or smaller in norm than the others, while still pointing in the same direction as $\mu_a$. As an example, let us consider a covariance for item $a$ as $\Sigma_a = \alpha I + \frac{1}{2}(\mu_a\mu_a^\top)$ for vanishingly small $\alpha$ (as shown in figure \ref{ka_plausible}). This causes $k_a$ to point in roughly the same direction as $\mu_a$, but with large variances in magnitude. Further, let $\Sigma_i = \alpha I$ for all $i \neq a$. %
+\begin{figure}[h]
+\centering
+\captionsetup{justification=centering,margin=2cm}
+\includegraphics[width=0.35\linewidth]{images/ka_plausible.png}
+\caption{The vector $\mu_a$ (shown here in 2D as an example), with the range of possible values of $k_a$ shown in red. As mentioned previously, $k_a$ points in roughly the same direction as $\mu_a$, but may have larger or smaller magnitude.}
+\label{ka_plausible}
+\end{figure}
+
+When you sample $\{k_1,\dots,k_n\}$ multiple times, and use the $q$ vector that you defined in part i., what do you expect the vector $c$ will look like qualitatively for different samples? Think about how it differs from part (i) and how $c$'s variance would be affected.
+
+\ifans{In part (i), the output was stably close to $\frac{1}{2}(v_a + v_b)$ because both relevant attention scores were nearly equal across samples. Here, however, $k_a$ has large variance in its magnitude along direction $\mu_a$, so the score $k_a^\top q$ can fluctuate substantially from one sample to another, while the score for item $b$ stays much more stable. As a result, the attention weight on item $a$ will sometimes be much larger than $\frac{1}{2}$ and sometimes smaller, so the output $c$ will vary noticeably across samples, often being pulled closer to $v_a$ in some runs and closer to $v_b$ in others, rather than consistently staying near the average. Therefore $c$ has significantly higher variance than in part (i), showing that single-headed attention is sensitive to this kind of norm perturbation.}
+\end{subparts}
+
+\part[3] \textbf{Benefits of multi-headed attention:}
+Now we'll see some of the power of multi-headed attention.
+We'll consider a simple version of multi-headed attention which is identical to single-headed self-attention as we've presented it in this homework, except two query vectors ($q_1$ and $q_2$) are defined, which leads to a pair of vectors ($c_1$ and $c_2$), each the output of single-headed attention given its respective query vector.
+The final output of the multi-headed attention is their average, $\frac{1}{2}(c_1+c_2)$.
+As in question 1(\ref{q_problem_with_single_head}), consider a set of key vectors $\{k_1,\dots,k_n\}$ that are randomly sampled, $k_i\sim \mathcal{N}(\mu_i, \Sigma_i)$, where the means $\mu_i$ are known to you, but the covariances $\Sigma_i$ are unknown.
+Also as before, assume that the means $\mu_i$ are mutually orthogonal; $\mu_i^\top \mu_j = 0$ if $i\not=j$, and unit norm, $\|\mu_i\|=1$.
+\begin{subparts}
+\subpart[1]
+Assume that the covariance matrices are $\Sigma_i=\alpha I$, for vanishingly small $\alpha$.
+Design $q_1$ and $q_2$ such that $c$ is approximately equal to $\frac{1}{2}(v_a+v_b)$. 
+Note that $q_1$ and $q_2$ should have different expressions.
+
+\ifans{Choose
+$$
+q_1 = \lambda \mu_a, \qquad q_2 = \lambda \mu_b,
+$$
+where $\lambda > 0$ is a large scalar. Since the sampled keys are very close to their means when $\Sigma_i = \alpha I$ with vanishingly small $\alpha$, we have $k_a^\top q_1 \approx \lambda$ and $k_i^\top q_1 \approx 0$ for $i \neq a$, so the first head places almost all of its attention on $v_a$, giving $c_1 \approx v_a$. Similarly, the second head places almost all of its attention on $v_b$, giving $c_2 \approx v_b$. Therefore,
+$$
+c = \frac{1}{2}(c_1 + c_2) \approx \frac{1}{2}(v_a + v_b).
+$$}
+
+\subpart[2]
+Assume that the covariance matrices are $\Sigma_a=\alpha I + \frac{1}{2}(\mu_a\mu_a^\top)$ for vanishingly small $\alpha$, and $\Sigma_i=\alpha I$  for all $i \neq a$.
+Take the query vectors $q_1$ and $q_2$ that you designed in part i.
+What, qualitatively, do you expect the output $c$ to look like across different samples of the key vectors? Explain briefly in terms of variance in $c_1$ and $c2$. You can ignore cases in which $k_a^\top q_i < 0$. 
+
+\ifans{With $q_1 = \lambda \mu_a$ and $q_2 = \lambda \mu_b$, the first head still mainly attends to item $a$, while the second head mainly attends to item $b$. Because $k_a$ now has substantial variation in its magnitude along direction $\mu_a$, the attention score $k_a^\top q_1$ varies noticeably across samples, so $c_1$ has higher variance: in some samples it will be very close to $v_a$, while in others it will be more diffuse. In contrast, $c_2$ remains low-variance and stays close to $v_b$, since $k_b$ only has tiny isotropic noise. Hence the final output
+$$
+c = \frac{1}{2}(c_1 + c_2)
+$$
+still stays qualitatively near $\frac{1}{2}(v_a + v_b)$, but with much less variance than the single-headed case, because only one head is unstable while the other remains reliable.}
+
+
+
+\end{subparts}
+
+
+
+
+
+
+
+\end{parts}
